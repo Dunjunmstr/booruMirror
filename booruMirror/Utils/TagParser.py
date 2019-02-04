@@ -210,7 +210,7 @@ class OrToken:
         firstDF = self.firstToken.evaluateDF(df)
         secondDF = self.secondToken.evaluateDF(df)
         doubleDF = pd.concat([firstDF, secondDF])
-        orDF = doubleDF.drop_duplicates(keep=True)
+        orDF = doubleDF.drop_duplicates(keep="first")
         return orDF
 
     def __str__(self):
