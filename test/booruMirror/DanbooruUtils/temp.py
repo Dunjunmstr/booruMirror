@@ -1,0 +1,1 @@
+print """['data-Id=\"', 'data-Tags=\"', 'data-Rating=\"', 'data-Score=\"', 'data-Favcount=\"', 'data-FileUrl=\"', 'data-LargeFileUrl=\"', 'data-PreviewFileUrl']""".lower()

@@ -1,0 +1,200 @@
+
+<head>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles/stylesheet.css') }}" />
+</head>
+
+
+<script type="text/javascript">
+    function setRating() {
+      console.log("hi");
+        var page = document.getElementById('tags').value;
+        var ratingString = ""
+        if (document.getElementById("safe").checked){
+          ratingString = ratingString + "s";
+        }
+        if (document.getElementById("questionable").checked){
+          ratingString = ratingString + "q";
+        }
+        if (document.getElementById("explicit").checked){
+          ratingString = ratingString + "e";
+        }
+
+        document.getElementById("rating").value = ratingString
+        document.getElementById("rating2").value = ratingString
+
+        // window.location.href = window.location.href + "&rating=" + ratingString;
+        // if (document.getElementById("sld").checked){
+        //   window.location.href =  window.location.href + "&sld=True";
+        // }
+        console.log(window.location.href + "&rating=" + ratingString)
+        console.log(ratingString)
+        console.log(window.location.href);
+    }
+
+    function getGetParameter(name){
+      // Retrieved from https://stackoverflow.com/questions/831030/how-to-get-get-request-parameters-in-javascript
+       var tempval = null
+       var elem = document.getElementById(name);
+       if(name=(new RegExp('[?&]'+encodeURIComponent(name)+'=([^&]*)')).exec(location.search)){
+           console.log("Replacing " + name[1] + " with " + unescape(decodeURIComponent(name[1])))
+           return unescape(decodeURIComponent(name[1]).replace(/\+/g, '%20')); //Replace + with space
+       }
+    }
+
+    function getCurrentPageNumber(){
+      var currentPage = getGetParameter("page");
+      if (!currentPage){
+        currentPage = "1"; //Default
+      }
+      return parseInt(currentPage);
+    }
+
+    function getPrevPage(){
+      var currentPage = getCurrentPageNumber();
+      var tentativeResult = window.location.href
+      if (tentativeResult.indexOf("page=") == -1){
+        if (tentativeResult.indexOf("?") == -1){
+          tentativeResult = tentativeResult + "?"
+        }
+        tentativeResult = tentativeResult + "&page=" + currentPage.toString()
+      }
+      return tentativeResult.replace("page=" + currentPage, "page=" + (currentPage - 1).toString());
+    }
+
+    function getNextPage(){
+      var currentPage = getCurrentPageNumber();
+      var tentativeResult = window.location.href
+      if (tentativeResult.indexOf("page=") == -1){
+        if (tentativeResult.indexOf("?") == -1){
+          tentativeResult = tentativeResult + "?"
+        }
+        tentativeResult = tentativeResult + "&page=" + currentPage.toString()
+      }
+      return tentativeResult.replace("page=" + currentPage, "page=" + (currentPage + 1).toString());
+    }
+
+    function setRatingCheckboxes(){
+      var rating = getGetParameter("rating");
+      if (!rating){
+        document.getElementById("safe").checked = true;
+        return;
+      }
+      var ratingDict = {
+        "s": "safe",
+        "q": "questionable",
+        "e": "explicit"
+      };
+      for(var ratingAbbreviation in ratingDict) {
+        var ratingFull = ratingDict[ratingAbbreviation];
+        if (rating.indexOf(ratingAbbreviation) != -1){
+          console.log("Checking off " + ratingAbbreviation + " from " + rating);
+          document.getElementById(ratingFull).checked = true;
+        }
+      }
+    }
+
+    function maintainFields(){
+      //Includes tags, ipp, pagenumber
+      var elements = {
+        "tags": "",
+        "ipp": "20",
+        "page": "1",
+        "tags2": "",
+        "ipp2": "20",
+        "sld": false,
+        "sld2": false,
+      };
+      for(var elementId in elements) {
+        var elementIdTrimmed = elementId.replace(/[0-9]*$/gm,'')//Getting rid of the integer suffix
+        var valueToSet = elements[elementId]
+        var proposedValue = getGetParameter(elementIdTrimmed)
+
+        if (typeof(valueToSet) == "boolean"){
+          if (proposedValue == "on"){
+            proposedValue = true
+          } else{
+            proposedValue = false
+          }
+        }
+
+        if (proposedValue){
+            valueToSet = proposedValue
+        }
+        console.log("Setting " + elementId + " to " + valueToSet);
+        if (typeof(valueToSet) == "boolean"){
+          document.getElementById(elementId).checked = valueToSet
+        }
+        else{
+          document.getElementById(elementId).value = valueToSet
+        }
+      }
+    }
+
+    function setDefaultPage(){
+      if (window.location.href.indexOf("?") == -1){
+        //Default parameters should be safe rating, 20 ipp, "" tags, page 1
+        window.location.href = window.location.href + "?page=1&rating=s&ipp=20"
+      }
+    }
+
+    window.onload = function() {
+      console.log("Running functions!")
+      setDefaultPage();
+      setRatingCheckboxes();
+      if (getCurrentPageNumber() > 1){
+        document.getElementById('prevLink').href = getPrevPage();
+      }
+      document.getElementById('nextLink').href = getNextPage();
+      // maintainFields();
+    };
+</script>
+
+
+
+<!-- <form action="/echo" method="get">
+  <input type="checkbox" name="rating" value="s" checked> Safe<br>
+  <input type="checkbox" name="rating" value="q"> Questionable<br>
+  <input type="checkbox" name="rating" value="e"> Explicit<br>
+  <input name="text"  name="tags">
+  <input type="submit" value="Submit">
+</form> -->
+<div class="optionBar">
+<input type="checkbox" id="safe" {% if 's' in rating %} checked {% endif %}> Safe<br>
+<input type="checkbox" id="questionable" {% if 'q' in rating %} checked {% endif %}> Questionable<br>
+<input type="checkbox" id="explicit" {% if 'e' in rating %} checked {% endif %}> Explicit<br>
+<form onsubmit="setRating()">
+Tags:<br>
+<input id="tags"  name="tags" value="{{tags}}"><br>
+Images per page: <br>
+<input id="ipp"  name="ipp" value="{{ipp}}">
+<input type="hidden" id="rating" name="rating">
+<br>
+<input type="checkbox" id="sld" name="sld" value="{{sld}}"> Link directly<br>
+<input type="submit" value="Submit">
+</form>
+</div>
+
+<div class="title">
+  <a href="/">BooruMirror</a> - <a href = "https://danbooru.donmai.us/forum_posts/6077" title="6 tags my butt" >Because two tags is apparently six </a>
+</div>
+
+<div class="pageSwitchMargin">
+  Page<br>
+  <form method="get" onsubmit="setRating()">
+    <a id="prevLink">&lt;</a> 
+    <input type="number" name="page" id="page" size="2" maxlength="4" value="{{page}}"> 
+    <a id="nextLink">&gt;</a> <br>
+    <input type="hidden" name="tags" value="{{ tags }}">
+    <input type="hidden" name="ipp" value="{{ ipp }}">
+    <input type="hidden" name="sld" value="{{ sld }}">
+    <input type="hidden" id="rating2" name="rating">
+    <input type="submit" value="Go to page">
+  </form>
+</div>
+<div class="main">
+{% if images %}
+  {{ images }}
+{% else %}
+  <img src="{{ url_for('static',filename='images/noresultsfound.png') }}" title="No images found">
+{% endif %}
+</div>
