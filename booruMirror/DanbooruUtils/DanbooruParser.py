@@ -331,6 +331,8 @@ def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, knownTagRati
     ratingFilteredDatabase = retrieveRatingFilteredDF(tagFilteredDatabase, rating)
     knownTagRating[(tags, rating)] = getIndicesFromDF(ratingFilteredDatabase)
     timestamp("Retrieved rating-filtered and added to cache...")
+  if len(ratingFilteredDatabase) == 0:
+    return ratingFilteredDatabase #Arbitrarily
   pageFilteredDatabase = getPageOfDatabase(ratingFilteredDatabase, page, imagesPerPage)
   timestamp("Retrieved page-filtered, returning...")
   return pageFilteredDatabase
