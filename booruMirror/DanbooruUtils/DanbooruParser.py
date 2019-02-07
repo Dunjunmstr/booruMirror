@@ -41,7 +41,7 @@ def getDanbooruDF():
     downloadDanbooruDB()
   highestIndex = findHighestIndex(dbName) #Gets the highest index in the database
   obtainImagesBetweenIndicesAsSqlite(highestIndex) #Updates the sqlite database
-  return extractSqliteAsDF()
+  return extractSqliteAsDF().set_index('dataId', drop=False)
 
 def obtainImagesBetweenIndicesAsDF(startIndex, endIndex = None, arbitrarySizeLimit = 40000):
   if endIndex == None:
@@ -67,6 +67,18 @@ def obtainImagesBetweenIndicesAsSqlite(startIndex, endIndex = None):
   if endIndex == None:
     endIndex = getMaximumDanbooruIndex()
   addToSqliteTable(obtainImagesBetweenIndices(startIndex, endIndex))
+
+def extractDFFromQuery(tags):
+  conn = sqlite3.connect("danbooru.db")
+  cur = conn.cursor()
+  result = None
+  timestamp("Resetting timestamp")
+  timestamp("Connected, generating query for %s..." % tags)
+  a = TagParser(tags)
+  with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+    result = pd.read_sql_query(a.generateSQLQuery(), conn)
+  timestamp("Query complete, time taken:")
+  return result
 
 #############################################################################
 ############################# Helper functions ##############################
@@ -290,20 +302,34 @@ def timestamp(printString = None, lastTime = [None]):
       timeString = printString + ": " + str(timeString)
     print(timeString)
 
-def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, knownTagRatingList=[dict()]):
+def getIndexElementsFromDatabase(database, indices):
+  return database.loc[indices, :]
 
+def getIndicesFromDF(dataframe):
+  return [i for i in dataframe["dataId"]]
+
+
+def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, knownTagRatingList=[dict()], knownTagDict=[dict()]):
   #First we filter by tags, then by rating, then grab the appropriate pages
   knownTagRating = knownTagRatingList[0]
   ratingFilteredDatabase = None
   timestamp("Beginning retrieval...")
   if (tags, rating) in knownTagRating:
-    ratingFilteredDatabase = knownTagRating[(tags, rating)]
+    ratingFilteredDatabase = getIndexElementsFromDatabase(database, knownTagRating[(tags, rating)])
     timestamp("Retrieved rating-filtered via cache...")
   else:
-    tagFilteredDatabase = retrieveTagFilteredDF(database, tags)
+    if tags in knownTagDict[0]:
+      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[0][tags])
+    elif " " in tags:
+      tagFilteredDatabase = extractDFFromQuery(tags)
+      knownTagDict[0][tags] = getIndicesFromDF(tagFilteredDatabase)
+    else:
+      tagFilteredDatabase = retrieveTagFilteredDF(database, tags)
+      knownTagDict[0][tags] = getIndicesFromDF(tagFilteredDatabase)
+
     timestamp("Retrieved tag-filtered...")
     ratingFilteredDatabase = retrieveRatingFilteredDF(tagFilteredDatabase, rating)
-    knownTagRating[(tags, rating)] = ratingFilteredDatabase
+    knownTagRating[(tags, rating)] = getIndicesFromDF(ratingFilteredDatabase)
     timestamp("Retrieved rating-filtered and added to cache...")
   pageFilteredDatabase = getPageOfDatabase(ratingFilteredDatabase, page, imagesPerPage)
   timestamp("Retrieved page-filtered, returning...")
@@ -353,6 +379,8 @@ def findHighestIndex(dbName):
   cur.execute("SELECT MAX(dataId) FROM images;")
   rows = cur.fetchall()
   return rows[0][0]
+
+
 
 # a = extractSqliteAsDF()
 # b = retrieveTagFilteredDF(a, "shangguan_feiying")
@@ -420,3 +448,5 @@ def findHighestIndex(dbName):
 #     print eval(raw_input())
 #   except Exception as e:
 #     print "Failed from %s. Try again?" % e
+
+# testingStuff()

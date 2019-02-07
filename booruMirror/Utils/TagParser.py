@@ -118,6 +118,9 @@ class TagParser:
     def evaluateDF(self, df):
         return self.logicToken.evaluateDF(df)
 
+    def generateSQLQuery(self):
+        return "select * from images where" + self.logicToken.generateSQLQueryFragment()
+
     def __str__(self):
         return str(self.logicToken)
 
@@ -132,6 +135,9 @@ class EmptyToken:
 
     def evaluateDF(self, df):
         return df
+
+    def generateSQLQueryFragment(self):
+        return "(dataId > 0)" #Always true
 
     def __str__(self):
         return "<No tags>"
@@ -160,6 +166,9 @@ class BaseToken:
         spacedTokenString = " " + self.tokenString.strip() + " "
         return df[df['dataTags'].str.contains(self.tokenString, regex=False)]
 
+    def generateSQLQueryFragment(self):
+        return "(instr(dataTags, '%s') > 0)" % self.tokenString
+
     def __str__(self):
         return self.cleanedRepresentation
 
@@ -181,6 +190,10 @@ class NotToken:
         complementDF = doubleDF.drop_duplicates(keep=False)
         return complementDF
 
+    def generateSQLQueryFragment(self):
+        return "(not(%s))" % self.token.generateSQLQueryFragment()
+
+
 class AndToken:
     def __init__(self, firstToken, secondToken):
         self.firstToken = firstToken
@@ -193,6 +206,10 @@ class AndToken:
         firstFilter = self.firstToken.evaluateDF(df)
         bothFilter = self.secondToken.evaluateDF(firstFilter)
         return bothFilter
+
+    def generateSQLQueryFragment(self):
+        return "(%s and %s)" % (self.firstToken.generateSQLQueryFragment(), self.secondToken.generateSQLQueryFragment())
+
 
     def __str__(self):
         return "(%s & %s)" % (str(self.firstToken), str(self.secondToken))
@@ -213,6 +230,9 @@ class OrToken:
         orDF = doubleDF.drop_duplicates(keep="first")
         return orDF
 
+    def generateSQLQueryFragment(self):
+        return "(%s or %s)" % (self.firstToken.generateSQLQueryFragment(), self.secondToken.generateSQLQueryFragment())
+
     def __str__(self):
         return "(%s | %s)" % (str(self.firstToken), str(self.secondToken))
 
@@ -224,6 +244,12 @@ class XorToken:
 
     def evaluate(self, tags):
         return self.firstToken.evaluate(tags) ^ self.secondToken.evaluate(tags)
+
+
+    def generateSQLQueryFragment(self): #I don't think xor exists naturally
+        firstQuery = self.firstToken.generateSQLQueryFragment()
+        secondQuery = self.secondToken.generateSQLQueryFragment()
+        return " ((%s and not(%s)) or (not(%s) and %s)) " % (firstQuery, secondQuery, firstQuery, secondQuery)
 
     def evaluateDF(self, df):
         firstDF = self.firstToken.evaluateDF(df)
