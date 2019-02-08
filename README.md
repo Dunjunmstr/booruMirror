@@ -8,7 +8,10 @@ The directory structure is still a WIP, and tests don't quite work yet, but for 
 python booruMirror.py
 ```
 
-There may be several dependencies; please use pip to install them, with python -m pip install <packageName>. 
+# Dependencies
+So far, dependencies include mega (https://pypi.org/project/mega.py/), numpy/scipy, and Flask. Please use pip to install them, with python -m pip install <packageName>. 
+ 
+Note that, with the most recent upgrade to pip 19.0.1, mega no longer seems to be hosted as a repository. Until this issue gets resolved, please download the zip from https://puu.sh/CIUCN/37c4933f60.zip and place it into your python installation's Lib/site-packages directory. There may be some more packages to install, though they should be readily available via pip.
   
 # Searching
 Searching works as it does on most booru instances, and spaces in between elements defaults to "and", so:
