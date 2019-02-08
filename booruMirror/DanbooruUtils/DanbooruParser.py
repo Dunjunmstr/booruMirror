@@ -1,28 +1,19 @@
 # -*- coding: iso-8859-15 -*-
 import urllib2
 import re
-import cPickle
 import time
 import os
-import random
-import logging
-import math
 import copy
-import sys
 # from functools import lru_cache
 
 import pandas as pd
 import numpy
-import os
-import time
-import cPickle
 from DanbooruPic import *
+# import sys
 # sys.path.append('../..') 
 # from booruMirror.Utils.TagParser import TagParser, TokenLogicException
 from Utils.TagParser import TagParser, TokenLogicException 
 # from guppy import hpy
-import psutil
-import datetime
 import sqlite3
 from mega import Mega
 
@@ -57,8 +48,6 @@ def obtainImagesBetweenIndicesAsDF(startIndex, endIndex = None, arbitrarySizeLim
       subResult = obtainImagesBetweenIndicesAsDF(subStart, subEnd)
       dfAmalgamation = mergeDanbooruDFs(subResult, dfAmalgamation)
       print("Merged range %s to %s!" % (subStart, subEnd))
-      process = psutil.Process(os.getpid())
-      print(process.memory_info().rss)  # in bytes 
     return dfAmalgamation
   else:
     return danbooruPicsToPandas(list(obtainImagesBetweenIndices(startIndex, endIndex)))
@@ -117,27 +106,6 @@ def obtainImagesBetweenIndicesMock(startIndex, endIndex = None):
   print ("Done getting mock indices:")
   return results
 
-  # #Indexing is python list syntax
-  # if endIndex == None:
-  #   endIndex = getMaximumDanbooruIndex()
-  # upperPoint = endIndex
-  # results = set()
-  # while upperPoint > max(startIndex, 1):
-  #   print "At upperPoint %s" % upperPoint
-  #   # print upperPoint
-  #   newPics = None
-  #   while not newPics:
-  #     try:
-  #       newPics = obtainImagesAtIndex(upperPoint)
-  #     except Exception as e:
-  #       print("Couldn't get pictures due to %s, trying again in 10s" % str(e))
-  #       time.sleep(10)
-  #   upperPoint = min(newPics).getId()
-  #   if upperPoint <= max(startIndex, 1):
-  #     newPics = filter(lambda x: int(x.getId()) >= startIndex, newPics)
-  #   results.update(newPics)
-  # return results
-
 def danbooruPicsToPandas(danbooruPics):
   columns = ["dataId", "dataTags", "dataRating", "dataScore", "dataFavcount", "dataFileUrl", "dataLargeFileUrl", "dataPreviewFileUrl", "originalString"]
   dtype = str
@@ -150,10 +118,6 @@ def danbooruPicsToPandas(danbooruPics):
   result = pd.DataFrame(data = pandasData, columns = columns, dtype = dtype)
   result.set_index('dataId', inplace=True)
   return result
-
-  
-# def pandasToSqlite(pandasDF):
-
 
 #############################################################################
 ########################## Basic helper functions ###########################
@@ -196,16 +160,6 @@ def readWebpage(URL):
   req = urllib2.Request(URL, headers=hdr)
   return urllib2.urlopen(req, timeout=100).read()
 
-# def 
-
-
-# h = hpy()
-# print h.heap()
-# a = pd.HDFStore('junk.h5')
-# imageDF = obtainImagesBetweenIndicesAsDF(1, 2500000)
-# # a["booruDF4"] = imageDF
-# print(datetime.datetime.now())
-# print("Writing...")
 
 def initializeSqliteTable():
   conn = sqlite3.connect("danbooru.db")
@@ -367,88 +321,9 @@ def retrieveRatingFilteredDF(database, rating):
   result = database[database['dataRating'].str.contains(ratingRegex, regex=True)]
   return result
 
-# def updateDatabase(dbName):
-#   if dbName
-#   conn = sqlite3.connect(dbName)
-#   cur = conn.cursor()
-#   with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-#     result = pd.read_sql_query("select * from images", conn)
-#   return result
-
 def findHighestIndex(dbName):
   conn = sqlite3.connect(dbName)
   cur = conn.cursor()
   cur.execute("SELECT MAX(dataId) FROM images;")
   rows = cur.fetchall()
   return rows[0][0]
-
-
-
-# a = extractSqliteAsDF()
-# b = retrieveTagFilteredDF(a, "shangguan_feiying")
-# print b
-# print "~~~~"
-# print getPageOfDatabase(b, 2, 20)
-
-# nanRow = pd.Series([numpy.NaN] * 8, index = ["dataId", "dataTags", "dataRating", "dataScore", "dataFavcount", "dataFileUrl", "dataLargeFileUrl", "dataPreviewFileUrl"])
-# y = "1girl 2016 artist_name bare_shoulders black_border border dated fujiwara_no_mokou hair_ribbon highres long_hair looking_back nail_polish off_shoulder realistic red_eyes red_nails ribbon shangguan_feiying silver_hair smile solo touhou tress_ribbon upper_body watermark web_address"
-# b = TagParser("shangguan_feiying")
-# timestamp("Initializing DB!")
-# print a.where(b.evaluate(a["dataTags"])).dropna()
-
-
-# counter = 0
-# for index, row in a.iterrows():
-#   counter += 1
-#   print row['dataTags']
-#   if counter > 100:
-#     break
-# counter = 0
-
-# b = TagParser("hi")
-# print b.evaluate(["hi", "lo"])
-# x = a.where(a['dataId'] > 3396800).dropna()
-
-# 
-
-# c = 
-# dataBase[dataBase['dataTags'].str.contains("scenery", regex=False)]
-
-
-# def xprint(row):
-#   x = row['dataTags']
-#   if "shangguan_feiying" in x:
-#     print row
-#     print type(row)
-#     print len(row)
-#     return b.evaluate(x)
-#   return False
-#   # print x
-
-# obtainImagesBetweenIndicesAsSqlite(1)
-# df = extractSqliteAsDF()
-# for index, row in df.iterrows():
-#   print row['dataTags']
-#   if index > 10:
-#     break
-
-# timestamp("Finished initializing DB, about to evaluate")
-# d = a.apply(lambda row: row if (xprint(row)) else nanRow, axis=1)
-# timestamp("Done evaluating!")
-
-# # print a.where("shangguan_feiying" in a['dataTags']).dropna()
-# # print a['dataTags'].apply(lambda x: x if xprint(x) else numpy.NaN).dropna()
-
-# # print a['dataTags'].apply(lambda x: " ".join(sorted(list(eval(x)))))
-
-
-# # print a['dataTags'].apply(lambda x: xprint(x))
-
-# print ("Taking orders!")
-# while True:
-#   try:
-#     print eval(raw_input())
-#   except Exception as e:
-#     print "Failed from %s. Try again?" % e
-
-# testingStuff()
