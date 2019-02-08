@@ -20,7 +20,7 @@ from DanbooruPic import *
 # sys.path.append('../..') 
 # from booruMirror.Utils.TagParser import TagParser, TokenLogicException
 from Utils.TagParser import TagParser, TokenLogicException 
-from guppy import hpy
+# from guppy import hpy
 import psutil
 import datetime
 import sqlite3
