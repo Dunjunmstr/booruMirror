@@ -6,39 +6,30 @@
 
 <script type="text/javascript">
     function setRating() {
-      console.log("hi");
-        var page = document.getElementById('tags').value;
-        var ratingString = ""
-        if (document.getElementById("safe").checked){
-          ratingString = ratingString + "s";
-        }
-        if (document.getElementById("questionable").checked){
-          ratingString = ratingString + "q";
-        }
-        if (document.getElementById("explicit").checked){
-          ratingString = ratingString + "e";
-        }
+      var page = document.getElementById('tags').value;
+      var ratingString = ""
+      if (document.getElementById("safe").checked){
+        ratingString = ratingString + "s";
+      }
+      if (document.getElementById("questionable").checked){
+        ratingString = ratingString + "q";
+      }
+      if (document.getElementById("explicit").checked){
+        ratingString = ratingString + "e";
+      }
 
-        document.getElementById("rating").value = ratingString
-        document.getElementById("rating2").value = ratingString
-
-        // window.location.href = window.location.href + "&rating=" + ratingString;
-        // if (document.getElementById("sld").checked){
-        //   window.location.href =  window.location.href + "&sld=True";
-        // }
-        console.log(window.location.href + "&rating=" + ratingString)
-        console.log(ratingString)
-        console.log(window.location.href);
+      document.getElementById("rating").value = ratingString
+      document.getElementById("rating2").value = ratingString
     }
 
     function getGetParameter(name){
       // Retrieved from https://stackoverflow.com/questions/831030/how-to-get-get-request-parameters-in-javascript
-       var tempval = null
-       var elem = document.getElementById(name);
-       if(name=(new RegExp('[?&]'+encodeURIComponent(name)+'=([^&]*)')).exec(location.search)){
-           console.log("Replacing " + name[1] + " with " + unescape(decodeURIComponent(name[1])))
-           return unescape(decodeURIComponent(name[1]).replace(/\+/g, '%20')); //Replace + with space
-       }
+      var tempval = null
+      var elem = document.getElementById(name);
+      if(name=(new RegExp('[?&]'+encodeURIComponent(name)+'=([^&]*)')).exec(location.search)){
+        var plusReplacedName = decodeURIComponent(name[1]).replace(/\+/g, '%20') //Replace + with space
+        return unescape(plusReplacedName);
+      }
     }
 
     function getCurrentPageNumber(){
@@ -145,7 +136,7 @@
         document.getElementById('prevLink').href = getPrevPage();
       }
       document.getElementById('nextLink').href = getNextPage();
-      // maintainFields();
+      maintainFields();
     };
 </script>
 
@@ -169,7 +160,7 @@ Images per page: <br>
 <input id="ipp"  name="ipp" value="{{ipp}}">
 <input type="hidden" id="rating" name="rating">
 <br>
-<input type="checkbox" id="sld" name="sld" value="{{sld}}"> Link directly<br>
+<input type="checkbox" id="sld" name="sld"> Link directly<br>
 <input type="submit" value="Submit">
 </form>
 </div>
@@ -184,9 +175,9 @@ Images per page: <br>
     <a id="prevLink">&lt;</a> 
     <input type="number" name="page" id="page" size="2" maxlength="4" value="{{page}}"> 
     <a id="nextLink">&gt;</a> <br>
-    <input type="hidden" name="tags" value="{{ tags }}">
-    <input type="hidden" name="ipp" value="{{ ipp }}">
-    <input type="hidden" name="sld" value="{{ sld }}">
+    <input type="hidden" id="tags2" name="tags" value="{{ tags }}">
+    <input type="hidden" id="ipp2" name="ipp" value="{{ ipp }}">
+    <input type="hidden" id="sld2" name="sld" value="{{ sld }}">
     <input type="hidden" id="rating2" name="rating">
     <input type="submit" value="Go to page">
   </form>

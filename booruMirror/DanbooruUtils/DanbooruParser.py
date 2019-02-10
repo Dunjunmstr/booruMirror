@@ -4,16 +4,12 @@ import re
 import time
 import os
 import copy
-# from functools import lru_cache
-
 import pandas as pd
 import numpy
 from DanbooruPic import *
-# import sys
-# sys.path.append('../..') 
-# from booruMirror.Utils.TagParser import TagParser, TokenLogicException
-from Utils.TagParser import TagParser, TokenLogicException 
-# from guppy import hpy
+import sys
+sys.path.append('..') 
+from Utils.TagParser import TagParser, TokenLogicException
 import sqlite3
 from mega import Mega
 
@@ -32,7 +28,7 @@ def getDanbooruDF():
     downloadDanbooruDB()
   highestIndex = findHighestIndex(dbName) #Gets the highest index in the database
   obtainImagesBetweenIndicesAsSqlite(highestIndex) #Updates the sqlite database
-  return extractSqliteAsDF().set_index('dataId', drop=False)
+  return extractSqliteAsDF()
 
 def obtainImagesBetweenIndicesAsDF(startIndex, endIndex = None, arbitrarySizeLimit = 40000):
   if endIndex == None:
@@ -182,6 +178,7 @@ def extractSqliteAsDF(dbName = 'danbooru.db'):
   result = None
   with pd.option_context('display.max_rows', None, 'display.max_columns', None):
     result = pd.read_sql_query("select * from images", conn)
+  result.set_index('dataId', drop=False, inplace = True)
   return result
 
 def dfToSqlite(df, dbName = 'danbooru.db'):
