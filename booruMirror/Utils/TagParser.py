@@ -12,15 +12,15 @@ def reverseEscapeInputTagLogic(inputTagLogic):
         return "`" + inputTagLogic
     for character in specialCharacters:
         inputTagLogic = inputTagLogic.replace("`" + character, character)
-    # print inputTagLogic
+    # print(inputTagLogic)
     return inputTagLogic
 
 class TagParser:
     def __init__(self, tagLogic, freshCall = True):
         #We plan to support !, &^|, (), and tags.
-        tokens = filter(lambda x: x != "" and x != " ", re.split("(`[!&^|()]| )", tagLogic))
+        tokens = [x for x in re.split("(`[!&^|()]| )", tagLogic) if x != "" and x != " "]
         if freshCall:
-            tokens = map(reverseEscapeInputTagLogic, tokens)
+            tokens = list(map(reverseEscapeInputTagLogic, tokens))
         #Use a backtick to escape logic
         #At this line, the only elements with backticks are parts of strings.
         self.primedObjectToken = None
@@ -35,7 +35,7 @@ class TagParser:
         while i < len(tokens):
             #We will case on the type:
             token = tokens[i]
-            # print "Parsing %s" % token
+            # print("Parsing %s" % token)
             if token == "(":
                 leftParenIndex = i
                 rightParenIndex = self.findMatchingBrace(tokens, i)
@@ -152,14 +152,14 @@ class BaseToken:
     def evaluate(self, tags):
         lowerTags = None
         try:
-            if type(tags) == str or type(tags) == unicode:
+            if type(tags) == str or type(tags) == str:
                 lowerTags = tags.lower().split(" ")
             elif type(tags) == list or type(tags) == set:
-                lowerTags = map(lambda x: x.lower(), tags)
+                lowerTags = [x.lower() for x in tags]
             return self.tokenString in lowerTags
         except Exception as e:
-            print "Failed at %s evaluating %s, getting %s" % (self.tokenString, tags, lowerTags)
-            print "Type of tags: %s" % type(tags)
+            print(("Failed at %s evaluating %s, getting %s") % (self.tokenString, tags, lowerTags))
+            print(("Type of tags: %s" % type(tags)))
             raise Exception("Found exception %s" % e)
 
     def evaluateDF(self, df):

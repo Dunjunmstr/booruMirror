@@ -15,7 +15,7 @@ def displayMainPage():
     imagesPerPage = args.get("ipp")
     shouldLinkDirectly = args.get("sld")
 
-    if not page and not tags and not rating and not imagesPerPage:
+    if not tags and not rating and not imagesPerPage:
         rating = rating if rating else "s" 
         #TODO: Replace this with an actual method of hiding degenerate images
     elif not rating:
@@ -40,6 +40,8 @@ def displayMainPage():
                 (page, tags, rating, imagesPerPage, shouldLinkDirectly))
     return render_template('pageTemplate.html', images = Markup(imageString), 
                                                 page = page, 
+
+                                                
                                                 tags = tags, 
                                                 rating = rating, 
                                                 ipp = imagesPerPage,
