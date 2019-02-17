@@ -2,7 +2,18 @@
 <head>
   <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles/stylesheet.css') }}" />
 </head>
+<script language="javascript"> 
+  window.onkeydown = function(e) {
+      var event = e.which || e.keyCode || 0; // .which with fallback
+      if (event == 37 && !e.altKey){
+        window.location.href = getPrevPage(); // Navigate to URL
+      }
 
+      else if (event == 39 && !e.altKey){
+        window.location.href = getNextPage(); // Navigate to URL
+      }
+    }
+</script>
 
 <script type="text/javascript">
     function setRating() {
@@ -49,7 +60,7 @@
         }
         tentativeResult = tentativeResult + "&page=" + currentPage.toString()
       }
-      return tentativeResult.replace("page=" + currentPage, "page=" + (currentPage - 1).toString());
+      return tentativeResult.replace("page=" + currentPage, "page=" + (Math.max(currentPage - 1, 1)).toString());
     }
 
     function getNextPage(){
@@ -130,7 +141,7 @@
 
     window.onload = function() {
       console.log("Running functions!")
-      setDefaultPage();
+      // setDefaultPage();
       setRatingCheckboxes();
       if (getCurrentPageNumber() > 1){
         document.getElementById('prevLink').href = getPrevPage();
