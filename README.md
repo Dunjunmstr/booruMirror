@@ -1,5 +1,5 @@
 # booruMirror
-A utility written in Python 2.7 utilizing Flask, HTML, and Javascript to mirrors imageboards locally by iterating through their entire database and grabbing everything it sees. This allows for users to customize their searches and execute searches based on their own computing power, not through subscription-based throttling. Currently only supports Danbooru (The API seems positively worthless, which makes this approach perfect); a WIP.
+A utility written in Python 3.7 (Originally in 2.7 and hastily migrated to 3.7) utilizing Flask, HTML, and Javascript to mirror imageboards locally by iterating through their entire database and grabbing everything it sees. This allows for users to customize their searches and execute searches based on their own computing power, not through subscription-based throttling. Currently only supports Danbooru (The API seems positively worthless, which makes this approach perfect); a WIP.
 
 # Usage
 The directory structure is still a WIP, and tests don't quite work yet, but for now the basic functionality should work. From the booruMirror directory, run:
@@ -9,9 +9,9 @@ python booruMirror.py
 ```
 
 # Dependencies
-So far, dependencies include mega (https://pypi.org/project/mega.py/), numpy/scipy, and Flask. Please use pip to install them, with python -m pip install <packageName>. 
+So far, dependencies include mega (https://pypi.org/project/mega.py/), numpy/scipy, pandas, and Flask. Please use pip to install them, with python -m pip install <packageName>. 
  
-Note that, with the most recent upgrade to pip 19.0.1, mega no longer seems to be hosted as a repository. Until this issue gets resolved, please download the zip from https://puu.sh/CIUCN/37c4933f60.zip and place it into your python installation's Lib/site-packages directory. There may be some more packages to install, though they should be readily available via pip.
+Note that, with the most recent upgrade to Python 3.7, mega no longer seems to be hosted as a repository. Until this issue gets resolved, please follow the installation instructions from https://github.com/jeroenmeulenaar/python3-mega.
   
 # Searching
 Searching works as it does on most booru instances, and spaces in between elements defaults to "and", so:
@@ -47,6 +47,7 @@ The future of this repo's still a bit unclear: it can either support just Danboo
 1. Refactor to potentially support other imageboards if there's enough interest. Ideas include SankakuComplex (4 tag limit), Behoimi (2 tag limit), and Pixiv (because apparently they actually do index their images, but it might be a bit challenging to go through 80 million images). Ideas do NOT include Gelbooru (because it's just Danbooru with more smut and surprisingly no tag limit, rendering support semi-pointless), Safebooru (because it's supposedly just danbooru with a safe wrapper on it but it doesn't actually filter out any of the smut because safe is a useless classification), and most smut boorus (because oof).
 2. Just refactoring in general. Testing things informally's made this repo laden with technical debt; starting to have trouble finding where everything is.
 3. Fix up the tests and figure out how to write the tests so that they're actually runnable according to industry standard.
+4. (Distant future) Use feature branches rather than committing directly to the master
 
 # Danbooru-specific goals
 
