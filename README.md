@@ -33,6 +33,73 @@ finds all images with (either "scenery" or no "snow" or both) or "potato", but n
 # Options
 It is possible to specify several parameters: the safety-rating, tags, images displayed per page, and page are all standard options from booru-based imageboards (though the first of these is not as easily accessible). It is also possible to permit direct links--that is, all links to images will take the user to the full-sized image, not the default booru page. This is convenient for downloading or opening images en masse, in case the user is trying to select an image out of several choices and wants to keep a record of what they have seen.
 
+# Regarding benchmarks
+There were 3 approaches used to parse tags, which we will call the TagParser approach, the Lambda (actually closure) approach, and the pure SQL query approach. The TagParser simply relied on the built in computational ability of the TagParser class, the Lambda approach forked off of the TagParser approach but relied on a lambda function to cache all of its single tag searches and only stored the indices being stored, and the pure SQL query relied on the TagParser to generate a SQL query that could be run to obtain the relevant images.
+
+For benchmarks, we ran 4 searches, using the permutations of 1girl and highres, two of the most popular tags. The initial batch of benchmarks gave the following results:
+
+```
+1girl highres
+Lambdas: 5.1012
+TagParser: 2.898
+SQL: 14.410088777542114
+
+highres
+Lambdas: 1.4332771301269531
+TagParser: 2.2986559867858887
+SQL: 14.62399697303772
+
+1girl `| highres
+Lambdas: 1.3604545593261719
+TagParser: 5.102830648422241
+SQL: 22.014472723007202
+
+1girl 
+Lambdas: 1.981278657913208
+TagParser: 2.7778806686401367
+SQL: 18.63368320465088
+```
+
+Despite being a supposed improvement over the TagParser approach, the SQL queries actually took the longest time of all. What wasn't explained was why the TagParser approach seemed to be doing better than the closure approach. However, a subsequent search removing the SQL benchmarking and switching around the order gave us a better understanding of what was happening:
+
+```
+Highres
+Lambdas: 2.4194769859313965
+TagParser: 2.321817398071289
+
+1girl
+Lambda: 2.6393070220947266
+TagParser: 2.5156710147857666
+
+1girl `| highres
+Lambda: 0.015957593917846680
+TagParser: 5.008820056915283
+
+1girl highres
+Lambda: 0.008976221084594727
+TagParser: 2.731323003768921
+```
+It seemed that the caches were being contaminated with the SQL queries, resulting in cache misses for the Lambda approach. Removing the SQL query from the picture helped immensely.
+
+It is worth noting that only the amortized runtime for the cached approach is better. So, if we were to switch around the order:
+```
+1girl highres
+Lambda: 5.527900457382202
+TagParser: 2.7200350761413574
+1girl
+Lambda: 0.013966083526611328
+TagParser: 2.7327754497528076
+1girl `| highres
+Lambda: 0.02194046974182129
+TagParser: 5.248839616775513
+1girl
+Lambda: 0.011994600296020508
+TagParser: 2.3438191413879395
+```
+Not a pretty result for the first search, but many people like to reuse the results of their cache searches, so definitely a tradeoff worth keeping. 
+
+It's also worth that the speedup actually reverses in extreme cases. Searching through a glut of artists (212 artists in total) took 456 seconds for the Lambda approach and 475 seconds for the TagParser approach, presumably due to set/dataframe operations resulting in a significant overhead in these cases, and the former outperforming the latter.
+
 # Notes
 The future of this repo's still a bit unclear: it can either support just Danbooru, expand to other imageboards, or both.
 
