@@ -121,6 +121,9 @@ class TagParser:
     def generateSQLQuery(self):
         return "select * from images where" + self.logicToken.generateSQLQueryFragment()
 
+    def lambdaHandler(self, lambdaFunc):
+        return self.logicToken.lambdaHandler(lambdaFunc)
+
     def __str__(self):
         return str(self.logicToken)
 
@@ -138,6 +141,9 @@ class EmptyToken:
 
     def generateSQLQueryFragment(self):
         return "(dataId > 0)" #Always true
+
+    def lambdaHandler(self, lambdaFunc):
+        return lambdaFunc("") #Should return all possible results
 
     def __str__(self):
         return "<No tags>"
@@ -164,10 +170,13 @@ class BaseToken:
 
     def evaluateDF(self, df):
         spacedTokenString = " " + self.tokenString.strip() + " "
-        return df[df['dataTags'].str.contains(self.tokenString, regex=False)]
+        return df[df['dataTags'].str.contains(spacedTokenString, regex=False)]
 
     def generateSQLQueryFragment(self):
         return "(instr(dataTags, '%s') > 0)" % self.tokenString
+
+    def lambdaHandler(self, lambdaFunc):
+        return lambdaFunc(self.tokenString)
 
     def __str__(self):
         return self.cleanedRepresentation
@@ -193,6 +202,11 @@ class NotToken:
     def generateSQLQueryFragment(self):
         return "(not(%s))" % self.token.generateSQLQueryFragment()
 
+    def lambdaHandler(self, lambdaFunc):
+        normalSet = self.token.lambdaHandler(lambdaFunc)
+        wholeSet = lambdaFunc("")
+        return wholeSet - normalSet
+
 
 class AndToken:
     def __init__(self, firstToken, secondToken):
@@ -210,6 +224,8 @@ class AndToken:
     def generateSQLQueryFragment(self):
         return "(%s and %s)" % (self.firstToken.generateSQLQueryFragment(), self.secondToken.generateSQLQueryFragment())
 
+    def lambdaHandler(self, lambdaFunc):
+        return self.firstToken.lambdaHandler(lambdaFunc) & self.secondToken.lambdaHandler(lambdaFunc)
 
     def __str__(self):
         return "(%s & %s)" % (str(self.firstToken), str(self.secondToken))
@@ -233,6 +249,9 @@ class OrToken:
     def generateSQLQueryFragment(self):
         return "(%s or %s)" % (self.firstToken.generateSQLQueryFragment(), self.secondToken.generateSQLQueryFragment())
 
+    def lambdaHandler(self, lambdaFunc):
+        return self.firstToken.lambdaHandler(lambdaFunc) | self.secondToken.lambdaHandler(lambdaFunc)
+
     def __str__(self):
         return "(%s | %s)" % (str(self.firstToken), str(self.secondToken))
 
@@ -250,6 +269,9 @@ class XorToken:
         firstQuery = self.firstToken.generateSQLQueryFragment()
         secondQuery = self.secondToken.generateSQLQueryFragment()
         return " ((%s and not(%s)) or (not(%s) and %s)) " % (firstQuery, secondQuery, firstQuery, secondQuery)
+
+    def lambdaHandler(self, lambdaFunc):
+        return self.firstToken.lambdaHandler(lambdaFunc) ^ self.secondToken.lambdaHandler(lambdaFunc)
 
     def evaluateDF(self, df):
         firstDF = self.firstToken.evaluateDF(df)

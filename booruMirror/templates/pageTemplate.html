@@ -1,6 +1,7 @@
 
 <head>
   <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles/stylesheet.css') }}" />
+   <meta name="referrer" content="no-referrer" />
 </head>
 <script language="javascript"> 
   window.onkeydown = function(e) {
@@ -104,7 +105,7 @@
         "tags2": "",
         "ipp2": "20",
         "sld": false,
-        "sld2": false,
+        "sld2": "off",
       };
       for(var elementId in elements) {
         var elementIdTrimmed = elementId.replace(/[0-9]*$/gm,'')//Getting rid of the integer suffix

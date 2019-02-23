@@ -38,5 +38,16 @@ def formatDFEntry(row, shouldLinkDirectly):
     dataFileUrl = row["dataFileUrl"]
     dataLargeFileUrl = row["dataLargeFileUrl"]
     dataPreviewFileUrl = row["dataPreviewFileUrl"]
-    link = dataLargeFileUrl if shouldLinkDirectly else ("http://danbooru.donmai.us/posts/%s" % dataId)
+    link = (generateDirectLink(dataFileUrl) if shouldLinkDirectly else ("http://danbooru.donmai.us/posts/%s" % dataId)).replace("sample/", "").replace("sample-", "")
     return """<a href="%s">  <picture>  <source media="(max-width: 660px)" srcset="%s">      <source media="(min-width: 660px)" srcset="%s">      <img class="has-cropped-true" src="%s" title="%s rating:%s score:%s" alt="%s"></picture></a>""" % (link, dataPreviewFileUrl, dataPreviewFileUrl, dataPreviewFileUrl, dataTags, dataRating, dataScore, dataTags)
+
+def generateDirectLink(fileURL):
+    #Trick the site into thinking we're lost
+    newServerURL = "://danbooru.donmai.us/data" #This server the apache error
+    if newServerURL in fileURL:
+        lastSlash = fileURL.rfind("/") + 1
+        header = (fileURL[:lastSlash])
+        footer = (fileURL[lastSlash:])
+        bogusArtist = "__placeholderTags__"
+        return header +  bogusArtist + footer
+    return fileURL

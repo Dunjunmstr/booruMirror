@@ -19,10 +19,7 @@ class DanbooruPic:
       result = ourRegex.findall(articleString)
       if len(result) != 1:
         print ("For some reason, we have duplicate results for %s.")
-      if self.propertyDict[propKey]:
-        self.propertyDict[propKey] = result[0]
-      else:
-        self.propertyDict[propKey] = None
+      self.propertyDict[propKey] = result[0]
     #Special processing
     self.propertyDict['dataId'] = int(self.propertyDict['dataId'])
     self.propertyDict['dataTags'] = " " + self.propertyDict['dataTags'].strip() + " "

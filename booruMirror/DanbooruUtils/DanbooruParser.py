@@ -6,9 +6,9 @@ import os
 import copy
 import pandas as pd
 import numpy
-from .DanbooruPic import *
 import sys
-sys.path.append('..') 
+sys.path.append('..')
+from DanbooruUtils.DanbooruPic import *
 from Utils.TagParser import TagParser, TokenLogicException
 import Utils.ListUtils as ListUtils
 import sqlite3
@@ -61,18 +61,6 @@ def obtainImagesBetweenIndices(startIndex, endIndex = None):
       newPics = [x for x in newPics if int(x.getId()) >= startIndex]
     results.update(newPics)
   return results
-
-# TODO: Move this to testing
-# def obtainImagesBetweenIndicesMock(startIndex, endIndex = None):
-#   print ("Getting mock indices:")
-#   results = [generateFakeDanbooruPic(i) for i in range (startIndex, endIndex)]
-#   print ("Done getting mock indices:")
-#   return results
-#
-# def generateFakeDanbooruPic(ourId, defaultFake = [DanbooruPic("""<article id="post_3341850" class="post-preview blacklisted" data-id="3341850" data-has-sound="false" data-tags="alu.m_(alpcmas) cloud falling_star original scenery sky star star_(sky) starry_sky" data-pools="" data-approver-id="508240" data-rating="s" data-width="1440" data-height="810" data-flags="" data-has-children="false" data-score="0" data-fav-count="1" data-pixiv-id="71918955" data-file-ext="png" data-source="https://i.pximg.net/img-original/img/2018/12/02/00/27/08/71918955_p0.png" data-top-tagger="533129" data-uploader-id="533129" data-normalized-source="https://www.pixiv.net/member_illust.php?mode=medium&amp;illust_id=71918955" data-is-favorited="false" data-md5="6eecb0f46574adeaafee1782e9e5cbca" data-file-url="https://danbooru.donmai.us/data/6eecb0f46574adeaafee1782e9e5cbca.png" data-large-file-url="https://danbooru.donmai.us/data/sample/sample-6eecb0f46574adeaafee1782e9e5cbca.jpg" data-preview-file-url="https://raikou4.donmai.us/preview/6e/ec/6eecb0f46574adeaafee1782e9e5cbca.jpg">  <a href="https://danbooru.donmai.us/posts/3341850?q=rating%3As+scenery+limit%3A200">    <picture>      <source media="(max-width: 660px)" srcset="https://raikou3.donmai.us/crop/6e/ec/6eecb0f46574adeaafee1782e9e5cbca.jpg">      <source media="(min-width: 660px)" srcset="https://raikou4.donmai.us/preview/6e/ec/6eecb0f46574adeaafee1782e9e5cbca.jpg">      <img class="has-cropped-true" src="./sampleDanbooruPage_files/6eecb0f46574adeaafee1782e9e5cbca.jpg" title="alu.m_(alpcmas) cloud falling_star original scenery sky star star_(sky) starry_sky rating:s score:0" alt="alu.m_(alpcmas) cloud falling_star original scenery sky star star_(sky) starry_sky">""")]):
-#   result = copy.deepcopy(defaultFake[0])
-#   result.propertyDict['dataId'] = ourId
-#   return result
 
 #############################################################################
 ########################## Artifactory functions ############################
@@ -158,38 +146,57 @@ def getIndexElementsFromDatabase(database, indices):
 def getIndicesFromDF(dataframe):
   return [i for i in dataframe["dataId"]]
 
+def lambdaGenerator(df):
+  memoizationDict = dict()
+  def internalLambda(searchTerm):
+    if searchTerm in memoizationDict:
+      return set(memoizationDict[searchTerm])
+    else:
+      spacedTokenString = " " + searchTerm.strip() + " "
+      if searchTerm == "":
+        spacedTokenString = " "
+      allEntries = df[df['dataTags'].str.contains(spacedTokenString, regex=False)]
+      result = getIndicesFromDF(allEntries)
+      memoizationDict[searchTerm] = result
+      print ("Got %s entries" % len(result))
+      return set(result)
+  return internalLambda
 
-def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, knownTagRatingList=[dict()], knownTagDict=[dict()]):
+knownTagRating = dict()
+knownTagDict = dict()
+#TODO: Make this not a global
+
+def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = []):
   #First we filter by tags, then by rating, then grab the appropriate pages
-  knownTagRating = knownTagRatingList[0]
+  if len(lambdaGenList) == 0:
+    lambdaGenList.append(lambdaGenerator(database))
+  lambdaGen = lambdaGenList[0]
+
   ratingFilteredDatabase = None
   results = None
-  timestamp("Beginning retrieval...")
-  if (tags, rating) in knownTagRating:
-    knownTagRatingElement = knownTagRating[(tags, rating)]
-    start = (page - 1) * imagesPerPage
-    end = page * imagesPerPage
-    filteredDatabaseElements = ListUtils.getElementsFromReversedList(knownTagRatingElement, start, end)
-    results = getIndexElementsFromDatabase(database, filteredDatabaseElements)
-    timestamp("Retrieved rating-filtered via cache...")
-  else:
-    if tags in knownTagDict[0]:
-      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[0][tags])
-    elif " " in tags:
-      tagFilteredDatabase = extractDFFromQuery(tags)
-      knownTagDict[0][tags] = getIndicesFromDF(tagFilteredDatabase)
+  timestamp("Beginning retrieval of the tags %s on page %s with ratings %s, with %s images per page..." % (tags, page, rating, imagesPerPage))
+  if (tags, rating) not in knownTagRating:
+    if tags in knownTagDict:
+      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[tags])
     else:
-      tagFilteredDatabase = retrieveTagFilteredDF(database, tags)
-      knownTagDict[0][tags] = getIndicesFromDF(tagFilteredDatabase)
-
-    timestamp("Retrieved tag-filtered...")
+      # There are 2 other options: 
+      # TagParser approach: retrieveTagFilteredDF(database, tags)   
+      # SQL approach: extractDFFromQuery(tags)   
+      # Both appear to be slower, will not be used, and possibly deleted soon..
+      knownTagDict[tags] = retrieveTagFilteredDFWithLambdas(lambdaGen, tags)
+      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[tags])
+    timestamp("Retrieved tag-filtered entries for %s..." % (tags))
     ratingFilteredDatabase = retrieveRatingFilteredDF(tagFilteredDatabase, rating)
     knownTagRating[(tags, rating)] = getIndicesFromDF(ratingFilteredDatabase)
-    timestamp("Retrieved rating-filtered and added to cache...")
-    if len(ratingFilteredDatabase) == 0:
-      return ratingFilteredDatabase #Arbitrarily
-    results = getPageOfDatabase(ratingFilteredDatabase, page, imagesPerPage)
-  timestamp("Retrieved page-filtered, returning...")
+    timestamp("Retrieved rating-filtered entries for %s and added to cache..." % (tags))
+  else:
+    timestamp("Retrieved rating-filtered via cache...")
+  knownTagRatingElement = knownTagRating[(tags, rating)]
+  start = (page - 1) * imagesPerPage
+  end = page * imagesPerPage
+  filteredDatabaseElements = reversed(ListUtils.getElementsFromReversedList(knownTagRatingElement, start, end))
+  results = getIndexElementsFromDatabase(database, filteredDatabaseElements)
+  timestamp("Retrieved page-filtered entries for query %s, returning..." % (tags))
   return results
 
 def getPageOfDatabase(database, page, pageSize):
@@ -246,6 +253,10 @@ def extractDFFromQuery(tags):
   timestamp("Query complete, time taken:")
   return result
 
+def retrieveTagFilteredDFWithLambdas(lambdaGen, tags):
+  ourParser = TagParser(tags)
+  return sorted(list(ourParser.lambdaHandler(lambdaGen)))
+
 # @lru_cache(maxsize=None)
 def retrieveTagFilteredDF(database, tags, knownTagList=[dict()]):
   knownTags = knownTagList[0]
@@ -274,3 +285,8 @@ def findHighestIndexFromDB(dbName):
   if result == None:
     result = 1
   return result
+
+# database = getDanbooruDF()
+
+# getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = [])
+# print(obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getTags())
