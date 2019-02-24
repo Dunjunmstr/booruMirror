@@ -68,8 +68,9 @@ def obtainImagesBetweenIndices(startIndex, endIndex = None):
 
 def downloadDanbooruDB():
   m = Mega.from_ephemeral()
-  print ("Initiated Mega instance, downloading danbooru snapshot from 2/2/19...")
-  m.download_from_url('https://mega.nz/#!72ARxaSQ!-iOqAlYH6Rr7tbxFBiw3hnykIMiz0gcNgeEJMXLScQk')
+  print ("Initiated Mega instance, downloading danbooru snapshot from 2/19/19...")
+  artifactLink = "https://mega.nz/#!SzYSRaxR!-w3vMfOwH4PJqRjUfE7hijEEvTtlIx-TgQ3AFSSFdUI"
+  m.download_from_url(artifactLink)
   print ("Download complete.")
 
 #############################################################################
