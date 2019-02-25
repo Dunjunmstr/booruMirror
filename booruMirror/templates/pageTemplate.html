@@ -2,21 +2,25 @@
 <head>
   <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles/stylesheet.css') }}" />
    <meta name="referrer" content="no-referrer" />
+   <script src="{{ url_for('static',filename='styles/jquery-3.3.1.min.js') }}"></script>
 </head>
 <script language="javascript"> 
+
   window.onkeydown = function(e) {
       var event = e.which || e.keyCode || 0; // .which with fallback
-      if (event == 37 && !e.altKey){
+      var nothingFocused = ($('*:focus').length == 0)
+      if (event == 37 && !e.altKey && nothingFocused){
         window.location.href = getPrevPage(); // Navigate to URL
       }
 
-      else if (event == 39 && !e.altKey){
+      else if (event == 39 && !e.altKey && nothingFocused){
         window.location.href = getNextPage(); // Navigate to URL
       }
     }
 </script>
 
 <script type="text/javascript">
+
     function setRating() {
       var page = document.getElementById('tags').value;
       var ratingString = ""
