@@ -17,285 +17,258 @@ from mega import Mega
 #############################################################################
 ########################## Front-end functions ##############################
 #############################################################################
-
 DEBUG = True
 
-def getDanbooruDF():
-  dbName = "danbooru.db"
-  if os.path.isfile(dbName):
-    print("Found database at %s" % (os.path.join(os.getcwd(), dbName)))
-  else:
-    print("Database not found, downloading a snapshot from the internet...(This may take ~40 mins)")
-    downloadDanbooruDB()
-  initializeSqliteTable()
-  highestIndex = findHighestIndexFromDB(dbName) #Gets the highest index in the database
-  obtainImagesBetweenIndicesAsSqlite(highestIndex) #Updates the sqlite database up to the highest index
-  return extractSqliteAsDF()
+class DanbooruParser:
+  #Should extend BooruScraper
+  #Public API: getImageRange, refreshTag 
+  def __init__(self):
+    self.database = self.getDanbooruDF()
+    self.knownTagRating = dict()
+    self.knownTagDict = dict()
+    self.lambdaGen = self.lambdaGenerator(self.database)
 
-def obtainImagesBetweenIndicesAsSqlite(startIndex, endIndex = None):
-  initializeSqliteTable()
-  addToSqliteTable(obtainImagesBetweenIndices(startIndex, endIndex))
+  def getImageDFFromArgs(self, page, tags, rating, imagesPerPage, lambdaGenList = []):
+    #First we filter by tags, then by rating, then grab the appropriate pages
+    if len(lambdaGenList) == 0:
+      lambdaGenList.append(self.lambdaGenerator(self.database))
+    lambdaGen = lambdaGenList[0]
 
-#############################################################################
-############################# Helper functions ##############################
-#############################################################################
-
-def obtainImagesBetweenIndices(startIndex, endIndex = None, specificTag = None):
-  #Indexing is python list syntax
-  if endIndex == None:
-    endIndex = getMaximumDanbooruIndex()
-  upperPoint = endIndex
-  results = set()
-  newPics = True
-  while upperPoint > max(startIndex, 1) and newPics:
-    #There are two checks.
-    #The first one is to cap the search if there are extra images involved.
-    #The second is to cap the search if it doesn't necessarily reach the start index.
-    print("At upperPoint %s" % upperPoint)
-    # print upperPoint
-    newPics = None
-    while newPics == None:
-      try:
-        newPics = obtainImagesAtIndex(upperPoint)
-      except Exception as e:
-        print("Couldn't get pictures due to %s, trying again in 10s" % str(e))
-        time.sleep(10)
-    if newPics: #Checks for emptiness
-      upperPoint = min(newPics).getId()
-      if upperPoint <= max(startIndex, 1):
-        newPics = [x for x in newPics if int(x.getId()) >= startIndex]
-      results.update(newPics)
-  return results
-
-#############################################################################
-########################## Artifactory functions ############################
-#############################################################################
-
-def downloadDanbooruDB():
-  m = Mega.from_ephemeral()
-  print ("Initiated Mega instance, downloading danbooru snapshot from 2/19/19...")
-  artifactLink = "https://mega.nz/#!SzYSRaxR!-w3vMfOwH4PJqRjUfE7hijEEvTtlIx-TgQ3AFSSFdUI"
-  m.download_from_url(artifactLink)
-  print ("Download complete.")
-
-#############################################################################
-########################## Basic helper functions ###########################
-#############################################################################
-
-"""Functions easy to write unit tests for."""
-
-def getMaximumDanbooruIndex():
-  return obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getId()
-
-def mergeDanbooruDFs(old, new):
-  #Merging:
-  mergedDFs = pd.concat([old, new], ignore_index=False)
-  return mergedDFs[~mergedDFs.index.duplicated(keep='last')]
-
-def obtainImagesAtIndex(index, extraTag = None):
-  URL = getDanbooruURLAtIndex(index, extraTag)
-  return obtainImagesAtURL(URL)
-
-def getDanbooruURLAtIndex(currentId, extraTags = None):
-  result = "http://danbooru.donmai.us/posts?page=1&tags=id%%3A<%s+limit%%3A200" % (str(currentId))
-  if extraTags:
-    result += "+%s" % extraTags
-  return result
-
-def parsePage(pageString):
-  ourRegex = re.compile("(<article id=.*?</article>)")
-  result = ourRegex.findall(pageString)
-  return result
-
-def obtainImagesAtURL(URL):
-  pageSource = str(readWebpage(URL))
-  booruPicsString = parsePage(pageSource)
-  booruPics = [DanbooruPic(picString) for picString in booruPicsString]
-  return sorted(booruPics)
-
-#############################################################################
-######################## Untestable helper functions ########################
-#############################################################################
-
-def readWebpage(URL):
-  hdr = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1941.0 Safari/537.36'}
-  req = urllib.request.Request(URL, headers=hdr)
-  return urllib.request.urlopen(req, timeout=100).read()
-
-
-
-
-def extractSqliteAsDF(dbName = 'danbooru.db'):
-  conn = sqlite3.connect(dbName)
-  cur = conn.cursor()
-  result = None
-  with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    result = pd.read_sql_query("select * from images", conn)
-  result.set_index('dataId', drop=False, inplace = True)
-  return result
-
-def timestamp(printString = None, lastTime = [None]):
-  if DEBUG:
-    timeString = None
-    if not lastTime[0]:
-      lastTime[0] = time.time()
-      timeString = "Initialized timestamps"
-      return
+    ratingFilteredDatabase = None
+    results = None
+    self.timestamp("Beginning retrieval of the tags %s on page %s with ratings %s, with %s images per page..." % (tags, page, rating, imagesPerPage))
+    if (tags, rating) not in self.knownTagRating:
+      if tags in self.knownTagDict:
+        tagFilteredDatabase = self.getIndexElementsFromDatabase(self.knownTagDict[tags])
+      else:
+        self.knownTagDict[tags] = self.retrieveTagFilteredDFWithLambdas(lambdaGen, tags)
+        tagFilteredDatabase = self.getIndexElementsFromDatabase(self.knownTagDict[tags])
+      self.timestamp("Retrieved tag-filtered entries for %s..." % (tags))
+      ratingFilteredDatabase = self.retrieveRatingFilteredDF(tagFilteredDatabase, rating)
+      self.knownTagRating[(tags, rating)] = self.getIndicesFromDF(ratingFilteredDatabase)
+      self.timestamp("Retrieved rating-filtered entries for %s and added to cache..." % (tags))
     else:
-      newLastTime = time.time() 
-      timeString = newLastTime - lastTime[0]
-      lastTime[0] = newLastTime
-    if printString:
-      timeString = printString + ": " + str(timeString)
-    print(timeString)
+      self.timestamp("Retrieved rating-filtered via cache...")
+    knownTagRatingElement = self.knownTagRating[(tags, rating)]
+    start = (page - 1) * imagesPerPage
+    end = page * imagesPerPage
+    filteredDatabaseElements = reversed(ListUtils.getElementsFromReversedList(knownTagRatingElement, start, end))
+    results = self.getIndexElementsFromDatabase(filteredDatabaseElements)
+    self.timestamp("Retrieved page-filtered entries for query %s, returning..." % (tags))
+    return results
 
-def getIndexElementsFromDatabase(database, indices):
-  return database.loc[indices, :]
-
-def getIndicesFromDF(dataframe):
-  return [i for i in dataframe["dataId"]]
-
-def lambdaGenerator(df):
-  memoizationDict = dict()
-  def internalLambda(searchTerm):
-    if searchTerm in memoizationDict:
-      return set(memoizationDict[searchTerm])
+  def getDanbooruDF(self):
+    dbName = "danbooru.db"
+    if os.path.isfile(dbName):
+      print("Found database at %s" % (os.path.join(os.getcwd(), dbName)))
     else:
-      spacedTokenString = " " + searchTerm.strip() + " "
-      if searchTerm == "":
-        spacedTokenString = " "
-      allEntries = df[df['dataTags'].str.contains(spacedTokenString, regex=False)]
-      result = getIndicesFromDF(allEntries)
-      memoizationDict[searchTerm] = result
-      print ("Got %s entries" % len(result))
-      return set(result)
-  return internalLambda
+      print("Database not found, downloading a snapshot from the internet...(This may take ~40 mins)")
+      self.downloadDanbooruDB()
+    self.refreshImages()
+    return self.extractSqliteAsDF()
 
-knownTagRating = dict()
-knownTagDict = dict()
-#TODO: Make this not a global
-
-def getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = []):
-  #First we filter by tags, then by rating, then grab the appropriate pages
-  if len(lambdaGenList) == 0:
-    lambdaGenList.append(lambdaGenerator(database))
-  lambdaGen = lambdaGenList[0]
-
-  ratingFilteredDatabase = None
-  results = None
-  timestamp("Beginning retrieval of the tags %s on page %s with ratings %s, with %s images per page..." % (tags, page, rating, imagesPerPage))
-  if (tags, rating) not in knownTagRating:
-    if tags in knownTagDict:
-      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[tags])
-    else:
-      # There are 2 other options: 
-      # TagParser approach: retrieveTagFilteredDF(database, tags)   
-      # SQL approach: extractDFFromQuery(tags)   
-      # Both appear to be slower, will not be used, and possibly deleted soon..
-      knownTagDict[tags] = retrieveTagFilteredDFWithLambdas(lambdaGen, tags)
-      tagFilteredDatabase = getIndexElementsFromDatabase(database, knownTagDict[tags])
-    timestamp("Retrieved tag-filtered entries for %s..." % (tags))
-    ratingFilteredDatabase = retrieveRatingFilteredDF(tagFilteredDatabase, rating)
-    knownTagRating[(tags, rating)] = getIndicesFromDF(ratingFilteredDatabase)
-    timestamp("Retrieved rating-filtered entries for %s and added to cache..." % (tags))
-  else:
-    timestamp("Retrieved rating-filtered via cache...")
-  knownTagRatingElement = knownTagRating[(tags, rating)]
-  start = (page - 1) * imagesPerPage
-  end = page * imagesPerPage
-  filteredDatabaseElements = reversed(ListUtils.getElementsFromReversedList(knownTagRatingElement, start, end))
-  results = getIndexElementsFromDatabase(database, filteredDatabaseElements)
-  timestamp("Retrieved page-filtered entries for query %s, returning..." % (tags))
-  return results
-
-def getPageOfDatabase(database, page, pageSize):
-  offset = pageSize * (page)
-  return database.nlargest(offset, "dataId").nsmallest(pageSize, "dataId")
+  def refreshImages(self, tag = None):
+    dbName = "danbooru.db"
+    self.initializeSqliteTable()
+    highestIndex = self.findHighestIndexFromDB(dbName) #Gets the highest index in the database
+    self.obtainImagesBetweenIndicesAsSqlite(highestIndex) #Updates the sqlite database up to the highest index
 
 
-#############################################################################
-############################# SQLite functions ##############################
-#############################################################################
+  def obtainImagesBetweenIndicesAsSqlite(self, startIndex, endIndex = None, specificTag = None):
+    self.initializeSqliteTable()
+    self.addToSqliteTable(self.obtainImagesBetweenIndices(startIndex, endIndex))
 
-def addToSqliteTable(danbooruPics):
-  conn = sqlite3.connect("danbooru.db")
-  cur = conn.cursor()
-  counter = 0
-  print ("Adding dataframe to database!")
-  for danbooruPic in danbooruPics:
-    keyList = list(danbooruPic.propertyDict.keys())
-    valueList = [str(danbooruPic.propertyDict[x]) for x in keyList]
-    keyString = ",".join(keyList)
-    valueString = ",".join(["?"] * len(valueList))
-    command = """REPLACE INTO images (%s) VALUES (%s)""" % (keyString, valueString)
-    cur.execute(command, tuple(valueList))
-    counter += 1
-    if counter % 1000 == 0:
-      print("Counter: %s" % counter)
-  print ("Done adding dataframe!")
-  conn.commit()
+  #############################################################################
+  ############################# Helper functions ##############################
+  #############################################################################
 
-def initializeSqliteTable():
-  conn = sqlite3.connect("danbooru.db")
-  cur = conn.cursor()
-  cur.execute("""CREATE TABLE IF NOT EXISTS images (
-  dataId integer PRIMARY KEY,
-  dataTags text,
-  dataRating text,
-  dataScore integer,
-  dataFavcount integer,
-  dataFileUrl text,
-  dataLargeFileUrl text,
-  dataPreviewFileUrl text
-  );""")
-  conn.commit()
+  def obtainImagesBetweenIndices(self, startIndex, endIndex = None):
+    #Indexing is python list syntax
+    if endIndex == None:
+      endIndex = self.getMaximumDanbooruIndex()
+    upperPoint = endIndex
+    results = set()
+    newPics = True
+    while upperPoint > max(startIndex, 1) and newPics:
+      #There are two checks.
+      #The first one is to cap the search if there are extra images involved.
+      #The second is to cap the search if it doesn't necessarily reach the start index.
+      print("At upperPoint %s" % upperPoint)
+      # print upperPoint
+      newPics = None
+      while newPics == None:
+        try:
+          newPics = self.obtainImagesAtIndex(upperPoint)
+        except Exception as e:
+          print("Couldn't get pictures due to %s, trying again in 10s" % str(e))
+          time.sleep(10)
+      if newPics: #Checks for emptiness
+        upperPoint = min(newPics).getId()
+        if upperPoint <= max(startIndex, 1):
+          newPics = [x for x in newPics if int(x.getId()) >= startIndex]
+        results.update(newPics)
+    return results
 
-def extractDFFromQuery(tags):
-  conn = sqlite3.connect("danbooru.db")
-  cur = conn.cursor()
-  result = None
-  timestamp("Resetting timestamp")
-  timestamp("Connected, generating query for %s..." % tags)
-  a = TagParser(tags)
-  with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    result = pd.read_sql_query(a.generateSQLQuery(), conn)
-  timestamp("Query complete, time taken:")
-  return result
+  #############################################################################
+  ########################## Artifactory functions ############################
+  #############################################################################
 
-def retrieveTagFilteredDFWithLambdas(lambdaGen, tags):
-  ourParser = TagParser(tags)
-  return sorted(list(ourParser.lambdaHandler(lambdaGen)))
+  def downloadDanbooruDB(self):
+    m = Mega.from_ephemeral()
+    print ("Initiated Mega instance, downloading danbooru snapshot from 2/19/19...")
+    artifactLink = "https://mega.nz/#!SzYSRaxR!-w3vMfOwH4PJqRjUfE7hijEEvTtlIx-TgQ3AFSSFdUI"
+    m.download_from_url(artifactLink)
+    print ("Download complete.")
 
-# @lru_cache(maxsize=None)
-def retrieveTagFilteredDF(database, tags, knownTagList=[dict()]):
-  knownTags = knownTagList[0]
-  if tags in knownTags:
-    print("Using cache!!!")
-    return knownTags[tags]
+  #############################################################################
+  ########################## Basic helper functions ###########################
+  #############################################################################
 
-  ourParser = TagParser(tags)
-  result = ourParser.evaluateDF(database)
-  knownTags[tags] = result
-  return result
+  """Functions easy to write unit tests for."""
 
-def retrieveRatingFilteredDF(database, rating):
-  if (rating == "sqe"):
-    return database
-  ratingRegex = "[%s]" % rating #Should be a string of sqe
-  result = database[database['dataRating'].str.contains(ratingRegex, regex=True)]
-  return result
+  def getMaximumDanbooruIndex(self):
+    return self.obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getId()
 
-def findHighestIndexFromDB(dbName):
-  conn = sqlite3.connect(dbName)
-  cur = conn.cursor()
-  cur.execute("SELECT MAX(dataId) FROM images;")
-  rows = cur.fetchall()
-  result = rows[0][0]
-  if result == None:
-    result = 1
-  return result
+  def mergeDanbooruDFs(self, old, new): #Use later
+    #Merging:
+    mergedDFs = pd.concat([old, new], ignore_index=False)
+    return mergedDFs[~mergedDFs.index.duplicated(keep='last')]
 
-# database = getDanbooruDF()
+  def obtainImagesAtIndex(self, index, extraTag = None):
+    URL = self.getDanbooruURLAtIndex(index, extraTag)
+    return self.obtainImagesAtURL(URL)
 
-# getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = [])
-# print(obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getTags())
+  def getDanbooruURLAtIndex(self, currentId, extraTags = None):
+    result = "http://danbooru.donmai.us/posts?page=1&tags=id%%3A<%s+limit%%3A200" % (str(currentId))
+    if extraTags:
+      result += "+%s" % extraTags
+    return result
+
+  def parsePage(self, pageString):
+    ourRegex = re.compile("(<article id=.*?</article>)")
+    result = ourRegex.findall(pageString)
+    return result
+
+  def obtainImagesAtURL(self, URL):
+    pageSource = str(self.readWebpage(URL))
+    booruPicsString = self.parsePage(pageSource)
+    booruPics = [DanbooruPic(picString) for picString in booruPicsString]
+    return sorted(booruPics)
+
+  #############################################################################
+  ######################## Untestable helper functions ########################
+  #############################################################################
+
+  def readWebpage(self, URL):
+    hdr = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1941.0 Safari/537.36'}
+    req = urllib.request.Request(URL, headers=hdr)
+    return urllib.request.urlopen(req, timeout=100).read()
+
+  def extractSqliteAsDF(self, dbName = 'danbooru.db'):
+    conn = sqlite3.connect(dbName)
+    cur = conn.cursor()
+    result = None
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+      result = pd.read_sql_query("select * from images", conn)
+    result.set_index('dataId', drop=False, inplace = True)
+    return result
+
+  def timestamp(self, printString = None, lastTime = [None]):
+    if DEBUG:
+      timeString = None
+      if not lastTime[0]:
+        lastTime[0] = time.time()
+        timeString = "Initialized timestamps"
+        return
+      else:
+        newLastTime = time.time() 
+        timeString = newLastTime - lastTime[0]
+        lastTime[0] = newLastTime
+      if printString:
+        timeString = printString + ": " + str(timeString)
+      print(timeString)
+
+  def getIndexElementsFromDatabase(self, indices):
+    return self.database.loc[indices, :]
+
+  def getIndicesFromDF(self, dataframe):
+    return [i for i in dataframe["dataId"]]
+
+  def lambdaGenerator(self, df):
+    memoizationDict = dict()
+    def internalLambda(searchTerm):
+      if searchTerm in memoizationDict:
+        return set(memoizationDict[searchTerm])
+      else:
+        spacedTokenString = " " + searchTerm.strip() + " "
+        if searchTerm == "":
+          spacedTokenString = " "
+        allEntries = df[df['dataTags'].str.contains(spacedTokenString, regex=False)]
+        result = self.getIndicesFromDF(allEntries)
+        memoizationDict[searchTerm] = result
+        print ("Got %s entries" % len(result))
+        return set(result)
+    return internalLambda
+
+  #############################################################################
+  ############################# SQLite functions ##############################
+  #############################################################################
+
+  def addToSqliteTable(self, danbooruPics):
+    conn = sqlite3.connect("danbooru.db")
+    cur = conn.cursor()
+    counter = 0
+    print ("Adding dataframe to database!")
+    for danbooruPic in danbooruPics:
+      keyList = list(danbooruPic.propertyDict.keys())
+      valueList = [str(danbooruPic.propertyDict[x]) for x in keyList]
+      keyString = ",".join(keyList)
+      valueString = ",".join(["?"] * len(valueList))
+      command = """REPLACE INTO images (%s) VALUES (%s)""" % (keyString, valueString)
+      cur.execute(command, tuple(valueList))
+      counter += 1
+      if counter % 1000 == 0:
+        print("Counter: %s" % counter)
+    print ("Done adding dataframe!")
+    conn.commit()
+
+  def initializeSqliteTable(self):
+    conn = sqlite3.connect("danbooru.db")
+    cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS images (
+    dataId integer PRIMARY KEY,
+    dataTags text,
+    dataRating text,
+    dataScore integer,
+    dataFavcount integer,
+    dataFileUrl text,
+    dataLargeFileUrl text,
+    dataPreviewFileUrl text
+    );""")
+    conn.commit()
+
+  def retrieveTagFilteredDFWithLambdas(self, lambdaGen, tags):
+    ourParser = TagParser(tags)
+    return sorted(list(ourParser.lambdaHandler(lambdaGen)))
+
+  def retrieveRatingFilteredDF(self, database, rating):
+    if (rating == "sqe"):
+      return database
+    ratingRegex = "[%s]" % rating #Should be a string of sqe
+    result = database[database['dataRating'].str.contains(ratingRegex, regex=True)]
+    return result
+
+  def findHighestIndexFromDB(self, dbName):
+    conn = sqlite3.connect(dbName)
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(dataId) FROM images;")
+    rows = cur.fetchall()
+    result = rows[0][0]
+    if result == None:
+      result = 1
+    return result
+
+  # database = getDanbooruDF()
+
+  # getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = [])
+  # print(obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getTags())

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, Markup
-import DanbooruUtils.DanbooruParser as DanbooruParser
+from DanbooruUtils.DanbooruParser import DanbooruParser
 import Utils.HTMLFormatting as HTMLFormatting
 from Utils.TagParser import TagParser, TokenLogicException
 
@@ -30,8 +30,7 @@ def displayMainPage():
     print("Query for Page, Tag, Rating, IPP: %s, %s, %s, %s, %s" % 
                 (page, tags, rating, imagesPerPage, shouldLinkDirectly))
 
-    servedImages = DanbooruParser.getImageDFFromArgs(dataBase, 
-                                                     page, 
+    servedImages = dbParser.getImageDFFromArgs(page, 
                                                      tags, 
                                                      rating, 
                                                      imagesPerPage)
@@ -40,8 +39,6 @@ def displayMainPage():
                 (page, tags, rating, imagesPerPage, shouldLinkDirectly))
     return render_template('pageTemplate.html', images = Markup(imageString), 
                                                 page = page, 
-
-                                                
                                                 tags = tags, 
                                                 rating = rating, 
                                                 ipp = imagesPerPage,
@@ -51,5 +48,5 @@ def displayMainPage():
 
 
 if __name__ == '__main__':
-    dataBase = DanbooruParser.getDanbooruDF()
+    dbParser = DanbooruParser()
     app.run()
