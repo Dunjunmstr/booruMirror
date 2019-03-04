@@ -40,26 +40,31 @@ def obtainImagesBetweenIndicesAsSqlite(startIndex, endIndex = None):
 ############################# Helper functions ##############################
 #############################################################################
 
-def obtainImagesBetweenIndices(startIndex, endIndex = None):
+def obtainImagesBetweenIndices(startIndex, endIndex = None, specificTag = None):
   #Indexing is python list syntax
   if endIndex == None:
     endIndex = getMaximumDanbooruIndex()
   upperPoint = endIndex
   results = set()
-  while upperPoint > max(startIndex, 1):
+  newPics = True
+  while upperPoint > max(startIndex, 1) and newPics:
+    #There are two checks.
+    #The first one is to cap the search if there are extra images involved.
+    #The second is to cap the search if it doesn't necessarily reach the start index.
     print("At upperPoint %s" % upperPoint)
     # print upperPoint
     newPics = None
-    while not newPics:
+    while newPics == None:
       try:
         newPics = obtainImagesAtIndex(upperPoint)
       except Exception as e:
         print("Couldn't get pictures due to %s, trying again in 10s" % str(e))
         time.sleep(10)
-    upperPoint = min(newPics).getId()
-    if upperPoint <= max(startIndex, 1):
-      newPics = [x for x in newPics if int(x.getId()) >= startIndex]
-    results.update(newPics)
+    if newPics: #Checks for emptiness
+      upperPoint = min(newPics).getId()
+      if upperPoint <= max(startIndex, 1):
+        newPics = [x for x in newPics if int(x.getId()) >= startIndex]
+      results.update(newPics)
   return results
 
 #############################################################################
@@ -87,12 +92,15 @@ def mergeDanbooruDFs(old, new):
   mergedDFs = pd.concat([old, new], ignore_index=False)
   return mergedDFs[~mergedDFs.index.duplicated(keep='last')]
 
-def obtainImagesAtIndex(index):
-  URL = getDanbooruURLAtIndex(index)
+def obtainImagesAtIndex(index, extraTag = None):
+  URL = getDanbooruURLAtIndex(index, extraTag)
   return obtainImagesAtURL(URL)
 
-def getDanbooruURLAtIndex(currentId):
-  return "http://danbooru.donmai.us/posts?page=1&tags=id%%3A<%s+limit%%3A200" % (str(currentId))
+def getDanbooruURLAtIndex(currentId, extraTags = None):
+  result = "http://danbooru.donmai.us/posts?page=1&tags=id%%3A<%s+limit%%3A200" % (str(currentId))
+  if extraTags:
+    result += "+%s" % extraTags
+  return result
 
 def parsePage(pageString):
   ourRegex = re.compile("(<article id=.*?</article>)")
