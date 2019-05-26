@@ -21,19 +21,18 @@ DEBUG = True
 
 class DanbooruParser:
   #Should extend BooruScraper
-  #Public API: getImageRange, refreshTag 
-  def __init__(self):
+  #Public API: getImageRange, refreshTag
+
+  def __init__(self, dbName = "danbooru.db"):
+    self.dbName = dbName
+    self.database = None
     self.database = self.getDanbooruDF()
     self.knownTagRating = dict()
     self.knownTagDict = dict()
     self.lambdaGen = self.lambdaGenerator(self.database)
 
-  def getImageDFFromArgs(self, page, tags, rating, imagesPerPage, lambdaGenList = []):
+  def getImageDFFromArgs(self, page, tags, rating, imagesPerPage):
     #First we filter by tags, then by rating, then grab the appropriate pages
-    if len(lambdaGenList) == 0:
-      lambdaGenList.append(self.lambdaGenerator(self.database))
-    lambdaGen = lambdaGenList[0]
-
     ratingFilteredDatabase = None
     results = None
     self.timestamp("Beginning retrieval of the tags %s on page %s with ratings %s, with %s images per page..." % (tags, page, rating, imagesPerPage))
@@ -41,7 +40,7 @@ class DanbooruParser:
       if tags in self.knownTagDict:
         tagFilteredDatabase = self.getIndexElementsFromDatabase(self.knownTagDict[tags])
       else:
-        self.knownTagDict[tags] = self.retrieveTagFilteredDFWithLambdas(lambdaGen, tags)
+        self.knownTagDict[tags] = self.retrieveTagFilteredDFWithLambdas(tags)
         tagFilteredDatabase = self.getIndexElementsFromDatabase(self.knownTagDict[tags])
       self.timestamp("Retrieved tag-filtered entries for %s..." % (tags))
       ratingFilteredDatabase = self.retrieveRatingFilteredDF(tagFilteredDatabase, rating)
@@ -57,32 +56,32 @@ class DanbooruParser:
     self.timestamp("Retrieved page-filtered entries for query %s, returning..." % (tags))
     return results
 
+  def refreshImages(self, tag = None):
+    self.initializeSqliteTable()
+    highestIndex = self.findHighestIndexFromDB() #Gets the highest index in the database
+    newImages = self.obtainImagesBetweenIndices(tag, highestIndex)
+    self.addToSqliteTable(newImages)
+    if self.database:
+      self.mergeDanbooruDFs(self.database, newImages)
+
+  #############################################################################
+  ########################## Instantiation code ###############################
+  #############################################################################
+
   def getDanbooruDF(self):
-    dbName = "danbooru.db"
-    if os.path.isfile(dbName):
-      print("Found database at %s" % (os.path.join(os.getcwd(), dbName)))
+    if os.path.isfile(self.dbName):
+      print("Found database at %s" % (os.path.join(os.getcwd(), self.dbName)))
     else:
       print("Database not found, downloading a snapshot from the internet...(This may take ~40 mins)")
       self.downloadDanbooruDB()
     self.refreshImages()
     return self.extractSqliteAsDF()
 
-  def refreshImages(self, tag = None):
-    dbName = "danbooru.db"
-    self.initializeSqliteTable()
-    highestIndex = self.findHighestIndexFromDB(dbName) #Gets the highest index in the database
-    self.obtainImagesBetweenIndicesAsSqlite(highestIndex) #Updates the sqlite database up to the highest index
-
-
-  def obtainImagesBetweenIndicesAsSqlite(self, startIndex, endIndex = None, specificTag = None):
-    self.initializeSqliteTable()
-    self.addToSqliteTable(self.obtainImagesBetweenIndices(startIndex, endIndex))
-
   #############################################################################
   ############################# Helper functions ##############################
   #############################################################################
 
-  def obtainImagesBetweenIndices(self, startIndex, endIndex = None):
+  def obtainImagesBetweenIndices(self, tag, startIndex, endIndex = None):
     #Indexing is python list syntax
     if endIndex == None:
       endIndex = self.getMaximumDanbooruIndex()
@@ -98,7 +97,7 @@ class DanbooruParser:
       newPics = None
       while newPics == None:
         try:
-          newPics = self.obtainImagesAtIndex(upperPoint)
+          newPics = self.obtainImagesAtIndex(upperPoint, tag)
         except Exception as e:
           print("Couldn't get pictures due to %s, trying again in 10s" % str(e))
           time.sleep(10)
@@ -138,10 +137,10 @@ class DanbooruParser:
     URL = self.getDanbooruURLAtIndex(index, extraTag)
     return self.obtainImagesAtURL(URL)
 
-  def getDanbooruURLAtIndex(self, currentId, extraTags = None):
+  def getDanbooruURLAtIndex(self, currentId, extraTag = None):
     result = "http://danbooru.donmai.us/posts?page=1&tags=id%%3A<%s+limit%%3A200" % (str(currentId))
-    if extraTags:
-      result += "+%s" % extraTags
+    if extraTag:
+      result += "+%s" % extraTag
     return result
 
   def parsePage(self, pageString):
@@ -163,15 +162,6 @@ class DanbooruParser:
     hdr = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1941.0 Safari/537.36'}
     req = urllib.request.Request(URL, headers=hdr)
     return urllib.request.urlopen(req, timeout=100).read()
-
-  def extractSqliteAsDF(self, dbName = 'danbooru.db'):
-    conn = sqlite3.connect(dbName)
-    cur = conn.cursor()
-    result = None
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-      result = pd.read_sql_query("select * from images", conn)
-    result.set_index('dataId', drop=False, inplace = True)
-    return result
 
   def timestamp(self, printString = None, lastTime = [None]):
     if DEBUG:
@@ -214,8 +204,31 @@ class DanbooruParser:
   ############################# SQLite functions ##############################
   #############################################################################
 
+  def extractSqliteAsDF(self):
+    """Extracts all entries from the Sqlite table"""
+    conn = sqlite3.connect(self.dbName)
+    cur = conn.cursor()
+    result = None
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+      result = pd.read_sql_query("select * from images", conn)
+    result.set_index('dataId', drop=False, inplace = True)
+    return result
+
+
+  def findHighestIndexFromDB(self):
+    """Finds the most recent entry of a database by index."""
+    conn = sqlite3.connect(self.dbName)
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(dataId) FROM images;")
+    rows = cur.fetchall()
+    result = rows[0][0]
+    if result == None:
+      result = 1
+    return result
+
   def addToSqliteTable(self, danbooruPics):
-    conn = sqlite3.connect("danbooru.db")
+    """Adds a set of pictures to the sqlite table"""
+    conn = sqlite3.connect(self.dbName)
     cur = conn.cursor()
     counter = 0
     print ("Adding dataframe to database!")
@@ -233,7 +246,7 @@ class DanbooruParser:
     conn.commit()
 
   def initializeSqliteTable(self):
-    conn = sqlite3.connect("danbooru.db")
+    conn = sqlite3.connect(self.dbName)
     cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS images (
     dataId integer PRIMARY KEY,
@@ -247,28 +260,14 @@ class DanbooruParser:
     );""")
     conn.commit()
 
-  def retrieveTagFilteredDFWithLambdas(self, lambdaGen, tags):
+  def retrieveTagFilteredDFWithLambdas(self, tags):
     ourParser = TagParser(tags)
-    return sorted(list(ourParser.lambdaHandler(lambdaGen)))
+    return sorted(list(ourParser.lambdaHandler(self.lambdaGen)))
 
   def retrieveRatingFilteredDF(self, database, rating):
+    """Retrieves all posts from a dataframe of a certain rating."""
     if (rating == "sqe"):
       return database
     ratingRegex = "[%s]" % rating #Should be a string of sqe
     result = database[database['dataRating'].str.contains(ratingRegex, regex=True)]
     return result
-
-  def findHighestIndexFromDB(self, dbName):
-    conn = sqlite3.connect(dbName)
-    cur = conn.cursor()
-    cur.execute("SELECT MAX(dataId) FROM images;")
-    rows = cur.fetchall()
-    result = rows[0][0]
-    if result == None:
-      result = 1
-    return result
-
-  # database = getDanbooruDF()
-
-  # getImageDFFromArgs(database, page, tags, rating, imagesPerPage, lambdaGenList = [])
-  # print(obtainImagesAtURL("http://danbooru.donmai.us/")[-1].getTags())
